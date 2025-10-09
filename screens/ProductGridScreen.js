@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -9,52 +9,90 @@ import {
   StyleSheet,
 } from "react-native";
 import AppLayout from "../components/AppLayout";
-import { getSalesStrykeClient } from "../src/salesStrykeClient";
 
-export default function ProductGridScreen({ navigation }) {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function ProductGridScreen({ route, navigation }) {
+  const { products = [], address, selectedDate } = route.params || {};
 
   useEffect(() => {
-    loadProducts();
-  }, []);
+    console.log("✅ Loaded Products:", products.length);
+  }, [products]);
 
-  async function loadProducts() {
+  // 💲 Extract product price safely
+  const getProductPrice = (product) => {
     try {
-      const client = getSalesStrykeClient();
-      const response = await client.product.getAllDetail();
-      console.log("✅ Products API Response:", response);
-      setProducts(response || []);
-    } catch (err) {
-      console.error("❌ Product Fetch Error:", err);
-    } finally {
-      setLoading(false);
+      const pricing =
+        Array.isArray(product.productPricings) &&
+        product.productPricings.length > 0
+          ? product.productPricings[0]
+          : null;
+      if (!pricing || !pricing.unitPrice) return "N/A";
+      return `$${parseFloat(pricing.unitPrice).toFixed(2)}`;
+    } catch (e) {
+      console.warn("⚠️ Price error", e);
+      return "N/A";
     }
-  }
+  };
 
-  function renderItem({ item }) {
+  // 🖼 Extract product image safely
+  const getProductImage = (product) => {
+    try {
+      const image =
+        Array.isArray(product.productImages) &&
+        product.productImages.length > 0
+          ? product.productImages[0]
+          : null;
+      if (!image || !image.imagePath)
+        return "https://via.placeholder.com/200x200.png?text=No+Image";
+      return image.imagePath.startsWith("http")
+        ? image.imagePath
+        : `https://your-server-url.com/${image.imagePath}`; // 🔧 replace with actual image base URL if needed
+    } catch (e) {
+      console.warn("⚠️ Image error", e);
+      return "https://via.placeholder.com/200x200.png?text=No+Image";
+    }
+  };
+
+  const renderItem = ({ item }) => {
+    const name = item.name || item.label || "Unnamed Product";
+    const description =
+      item.description || item.uiDescription || "No description available.";
+    const price = getProductPrice(item);
+    const imageUri = getProductImage(item);
+
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => navigation.navigate("ProductQuantity", { product: item })}
+        onPress={() =>
+          navigation.navigate("ProductQuantity", {
+            product: item,
+            address,
+            selectedDate,
+          })
+        }
       >
-        <Image source={{ uri: item.image || "https://via.placeholder.com/100" }} style={styles.image} />
-        <Text style={styles.name}>{item.name}</Text>
-        {item.price && <Text style={styles.price}>${item.price}</Text>}
+        <Image source={{ uri: imageUri }} style={styles.image} />
+        <Text style={styles.name} numberOfLines={1}>
+          {name}
+        </Text>
+        <Text style={styles.desc} numberOfLines={2}>
+          {description}
+        </Text>
+        <Text style={styles.price}>{price}</Text>
       </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <AppLayout title="Select Product" navigation={navigation}>
-      {loading ? (
+      {products.length === 0 ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color="#0a84ff" />
+          <Text style={{ marginTop: 10 }}>Loading Products...</Text>
         </View>
       ) : (
         <FlatList
           data={products}
-          keyExtractor={(item) => item.id?.toString()}
+          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
           renderItem={renderItem}
           numColumns={2}
           contentContainerStyle={styles.list}
@@ -79,7 +117,18 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  image: { width: 100, height: 100, borderRadius: 10, marginBottom: 8 },
+  image: { width: 120, height: 120, borderRadius: 10, marginBottom: 8 },
   name: { fontSize: 16, fontWeight: "600", textAlign: "center" },
-  price: { fontSize: 14, color: "#0a84ff", marginTop: 4 },
+  desc: {
+    fontSize: 12,
+    color: "gray",
+    textAlign: "center",
+    marginVertical: 4,
+  },
+  price: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0a84ff",
+    marginTop: 4,
+  },
 });

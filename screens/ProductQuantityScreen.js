@@ -1,102 +1,176 @@
-// screens/ProductQuantityScreen.js
 import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Image,
   TouchableOpacity,
-  ScrollView,
+  StyleSheet,
+  Alert,
 } from "react-native";
 import AppLayout from "../components/AppLayout";
 import { useCart } from "../CartContext";
 
 export default function ProductQuantityScreen({ route, navigation }) {
-  const { product } = route.params;
-  const [qty, setQty] = useState(1);
+  const { product, address, selectedDate } = route.params || {};
   const { addToCart } = useCart();
+  const [quantity, setQuantity] = useState(1);
 
-  function increase() {
-    setQty((q) => q + 1);
+  if (!product) {
+    return (
+      <AppLayout title="Product" navigation={navigation}>
+        <View style={styles.center}>
+          <Text>No product data found.</Text>
+        </View>
+      </AppLayout>
+    );
   }
 
-  function decrease() {
-    if (qty > 1) setQty((q) => q - 1);
-  }
+  // 💲 Extract product price
+  const getProductPrice = () => {
+    try {
+      const pricing =
+        Array.isArray(product.productPricings) &&
+        product.productPricings.length > 0
+          ? product.productPricings[0]
+          : null;
+      return pricing?.unitPrice ? parseFloat(pricing.unitPrice) : 0;
+    } catch {
+      return 0;
+    }
+  };
 
-  function handleAddToCart() {
-    addToCart({ ...product, qty });
-    navigation.navigate("Cart");
-  }
+  // 🖼 Extract product image
+  const getProductImage = () => {
+    try {
+      const image =
+        Array.isArray(product.productImages) &&
+        product.productImages.length > 0
+          ? product.productImages[0]
+          : null;
+      if (!image || !image.imagePath)
+        return "https://via.placeholder.com/300x300.png?text=No+Image";
+      return image.imagePath.startsWith("http")
+        ? image.imagePath
+        : `https://your-server-url.com/${image.imagePath}`; // update base URL if needed
+    } catch {
+      return "https://via.placeholder.com/300x300.png?text=No+Image";
+    }
+  };
+
+  const price = getProductPrice();
+  const total = price * quantity;
+
+  const handleAddToCart = () => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price,
+      quantity,
+      image: getProductImage(),
+      description: product.description,
+      address,
+      selectedDate,
+    });
+
+    Alert.alert("✅ Added to Cart", `${product.name} has been added.`, [
+      {
+        text: "Proceed to Terms",
+        onPress: () => navigation.navigate("Terms", { product, address, selectedDate }),
+      },
+      { text: "Stay Here" },
+    ]);
+  };
 
   return (
-    <AppLayout title="Product Detail" navigation={navigation}>
+    <AppLayout title="Select Quantity" navigation={navigation}>
       <View style={styles.container}>
-        {/* Top Image */}
-        <Image source={{ uri: product.image }} style={styles.image} />
+        <Image source={{ uri: getProductImage() }} style={styles.image} />
+        <Text style={styles.name}>{product.name}</Text>
+        <Text style={styles.desc}>
+          {product.description || "No description available."}
+        </Text>
 
-        {/* Product Info */}
-        <ScrollView style={styles.detailContainer}>
-          <Text style={styles.name}>{product.name}</Text>
-          <Text style={styles.price}>Price: ${product.price}</Text>
-          <Text style={styles.desc}>{product.description}</Text>
-        </ScrollView>
+        <Text style={styles.price}>${price.toFixed(2)}</Text>
 
-        {/* Bottom Row: Qty + Add to Cart */}
-        <View style={styles.bottomRow}>
-          <View style={styles.qtyRow}>
-            <TouchableOpacity style={styles.qtyBtn} onPress={decrease}>
-              <Text style={styles.qtyText}>-</Text>
-            </TouchableOpacity>
-            <Text style={styles.qtyValue}>{qty}</Text>
-            <TouchableOpacity style={styles.qtyBtn} onPress={increase}>
-              <Text style={styles.qtyText}>+</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.qtyContainer}>
+          <TouchableOpacity
+            style={styles.qtyBtn}
+            onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+          >
+            <Text style={styles.qtyBtnText}>−</Text>
+          </TouchableOpacity>
 
-          <TouchableOpacity style={styles.cartBtn} onPress={handleAddToCart}>
-            <Text style={styles.cartBtnText}>
-              Add to Cart (${product.price * qty})
-            </Text>
+          <Text style={styles.qtyValue}>{quantity}</Text>
+
+          <TouchableOpacity
+            style={styles.qtyBtn}
+            onPress={() => setQuantity((q) => q + 1)}
+          >
+            <Text style={styles.qtyBtnText}>+</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={styles.total}>Total: ${total.toFixed(2)}</Text>
+
+        <TouchableOpacity style={styles.addBtn} onPress={handleAddToCart}>
+          <Text style={styles.addBtnText}>Add to Cart & Continue</Text>
+        </TouchableOpacity>
       </View>
     </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  image: { width: "100%", height: 280, resizeMode: "cover" },
-  detailContainer: { flex: 1, padding: 16 },
-  name: { fontSize: 22, fontWeight: "700", marginBottom: 6 },
-  price: { fontSize: 18, fontWeight: "700", color: "#0a84ff", marginBottom: 10 },
-  desc: { fontSize: 14, color: "gray", marginBottom: 20 },
-  bottomRow: {
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: { flex: 1, padding: 20, alignItems: "center" },
+  image: {
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    marginVertical: 20,
+  },
+  name: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  desc: {
+    fontSize: 14,
+    color: "gray",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  price: { fontSize: 18, color: "#0a84ff", fontWeight: "bold" },
+  qtyContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderColor: "#eee",
+    marginVertical: 20,
   },
-  qtyRow: { flexDirection: "row", alignItems: "center" },
   qtyBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
+    borderRadius: 8,
     backgroundColor: "#eee",
-    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
   },
-  qtyText: { fontSize: 20, fontWeight: "bold" },
-  qtyValue: { marginHorizontal: 12, fontSize: 18, fontWeight: "600" },
-  cartBtn: {
-    backgroundColor: "#0a84ff",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+  qtyBtnText: { fontSize: 20, fontWeight: "bold" },
+  qtyValue: { marginHorizontal: 15, fontSize: 18, fontWeight: "600" },
+  total: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 20,
   },
-  cartBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  addBtn: {
+    backgroundColor: "#0a84ff",
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 10,
+  },
+  addBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
 });
