@@ -6,6 +6,14 @@ import AppLayout from "./AppLayout";
 export default function AddressStartScreen({ title, navigation }) {
   const [address, setAddress] = useState("");
 
+  function handleGetStarted() {
+    if (!address) return;
+    navigation.navigate("Calendar", {
+      screen: "CalendarMain",
+      params: { address },
+    });
+  }
+
   return (
     <AppLayout title={title} navigation={navigation}>
       <View style={styles.container}>
@@ -21,7 +29,7 @@ export default function AddressStartScreen({ title, navigation }) {
         <TouchableOpacity
           style={[styles.btn, { backgroundColor: address ? "#0a84ff" : "gray" }]}
           disabled={!address}
-          onPress={() => navigation.navigate("Calendar", { address })}
+          onPress={handleGetStarted}
         >
           <Text style={styles.btnText}>Get Started</Text>
         </TouchableOpacity>

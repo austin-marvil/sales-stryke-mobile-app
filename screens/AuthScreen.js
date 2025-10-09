@@ -1,49 +1,80 @@
-// screens/AuthScreen.js
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import { salesStrykeClientApiInstance } from "@salesstryke/mobile-api/src/com/salesstryke/client";
-import { SecureIdentity } from "@salesstryke/mobile-api/src/com/salesstryke/entity/classes/persistable";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getSalesStrykeClient } from "../src/salesStrykeClient";
+import { com } from "@salesstryke/mobile-api";
 
 export default function AuthScreen({ navigation }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!login || !password) {
-      Alert.alert("Error", "Please enter both login and password");
-      return;
-    }
+  // 🔹 Auto-login check
+  useEffect(() => {
+    const checkLogin = async () => {
+      try {
+        const saved = await AsyncStorage.getItem("salesstryke_identity");
+        if (saved) {
+          console.log("🔁 Auto-login with saved identity");
+          navigation.replace("MainTabs");
+        }
+      } catch (err) {
+        console.error("Error reading saved login:", err);
+      }
+    };
+    checkLogin();
+  }, []);
 
-    setLoading(true);
+  // 🔹 Handle login
+  async function handleLogin() {
     try {
-      // Create SecureIdentity and attempt login
-      const secureIdentity = new SecureIdentity()
+      setLoading(true);
+      const client = getSalesStrykeClient();
+      const secureIdentity = new com.salesstryke.entity.classes.persistable.SecureIdentity()
         .setLogin(login)
         .setPassword(password);
 
-      const response = await salesStrykeClientApiInstance.secureIdentity.login(secureIdentity);
+      const res = await client.secureIdentity.login(secureIdentity);
+      console.log("✅ Login Response:", res);
 
-      console.log("Login Response:", response);
+      if (res?.identity) {
+        // ✅ Extract only safe fields (avoid circular refs)
+        const identity = res.identity;
+        const simpleIdentity = {
+          id: identity.id,
+          jwtToken: identity.jwtToken,
+          userEmail: identity.user?.email || "",
+          organizationName: identity.organization?.name || "",
+          login,
+        };
 
-      if (response?.identity) {
+        // ✅ Save minimal version to AsyncStorage
+        await AsyncStorage.setItem("salesstryke_identity", JSON.stringify(simpleIdentity));
+
         Alert.alert("Success", "Login successful!");
         navigation.replace("MainTabs");
       } else {
-        Alert.alert("Login Failed", "Invalid credentials or missing response.");
+        Alert.alert("Error", "Invalid credentials");
       }
-    } catch (error) {
-      console.error("Login Error:", error);
-      Alert.alert("Error", error.message || "Login failed");
+    } catch (err) {
+      console.error("Login Error:", err);
+      Alert.alert("Error", err.message || "Something went wrong during login");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
-
+      <Text style={styles.title}>SalesStryke Login</Text>
       <TextInput
         style={styles.input}
         placeholder="Username"
@@ -51,39 +82,28 @@ export default function AuthScreen({ navigation }) {
         onChangeText={setLogin}
         autoCapitalize="none"
       />
-
       <TextInput
         style={styles.input}
         placeholder="Password"
+        secureTextEntry
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
-
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
+      <TouchableOpacity
+        style={[styles.btn, loading && { opacity: 0.5 }]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Login</Text>}
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff", padding: 20 },
-  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-  input: {
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 15,
-  },
-  button: {
-    backgroundColor: "#0a84ff",
-    padding: 14,
-    borderRadius: 8,
-    width: "100%",
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  container: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "#fff" },
+  title: { fontSize: 26, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12, marginBottom: 16 },
+  btn: { backgroundColor: "#0a84ff", padding: 14, borderRadius: 8, alignItems: "center" },
+  btnText: { color: "#fff", fontWeight: "600" },
 });

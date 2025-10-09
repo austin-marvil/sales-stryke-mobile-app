@@ -1,4 +1,6 @@
+// screens/MoreScreen.js
 import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -9,13 +11,38 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import AppLayout from "../components/AppLayout";
+import Header from "../components/Header";
+import { getSalesStrykeClient } from "../src/salesStrykeClient"; // <-- make sure this path is correct
 
 export default function MoreScreen({ navigation }) {
   const [lang, setLang] = useState(false);
   const [notify, setNotify] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [problemText, setProblemText] = useState("");
+
+  async function handleLogout() {
+    try {
+      const client = getSalesStrykeClient();
+
+      console.log("SecureIdentity Methods:", Object.keys(client.secureIdentity));
+
+      // The correct method from your API
+      if (client.secureIdentity.delete) {
+        await client.secureIdentity.delete();
+      } else {
+        Alert.alert("Logout Unsupported", "No logout function found in API.");
+        return;
+      }
+
+      Alert.alert("Logout Successful", "You have been logged out.");
+      await AsyncStorage.removeItem("salesstryke_identity");
+      navigation.replace("Auth");
+    } catch (error) {
+      console.error("Logout Error:", error);
+      Alert.alert("Error", "Logout failed, please try again.");
+    }
+  }
+
 
   function sendProblem() {
     Alert.alert("Sent", "Your problem has been reported.");
@@ -24,7 +51,9 @@ export default function MoreScreen({ navigation }) {
   }
 
   return (
-    <AppLayout title="More" navigation={navigation}>
+    <View style={styles.container}>
+      <Header title="More" />
+
       <View style={styles.row}>
         <Text>Language</Text>
         <Switch value={lang} onValueChange={setLang} />
@@ -42,6 +71,10 @@ export default function MoreScreen({ navigation }) {
         <Text style={{ color: "#fff" }}>Report A Problem</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+        <Text style={{ color: "#fff", fontWeight: "600" }}>Logout</Text>
+      </TouchableOpacity>
+
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalWrap}>
           <View style={styles.modal}>
@@ -53,9 +86,21 @@ export default function MoreScreen({ navigation }) {
               multiline
               value={problemText}
               onChangeText={setProblemText}
-              style={styles.textArea}
+              style={{
+                height: 120,
+                borderWidth: 1,
+                borderColor: "#ddd",
+                padding: 8,
+                borderRadius: 6,
+              }}
             />
-            <View style={styles.actions}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 12,
+              }}
+            >
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Text>Cancel</Text>
               </TouchableOpacity>
@@ -66,11 +111,12 @@ export default function MoreScreen({ navigation }) {
           </View>
         </View>
       </Modal>
-    </AppLayout>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -86,6 +132,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
+  logoutBtn: {
+    marginHorizontal: 16,
+    backgroundColor: "red",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
   modalWrap: {
     flex: 1,
     justifyContent: "center",
@@ -97,17 +150,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 8,
-  },
-  textArea: {
-    height: 120,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 8,
-    borderRadius: 6,
-  },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
   },
 });
